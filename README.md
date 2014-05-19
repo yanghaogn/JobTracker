@@ -2,7 +2,7 @@
 ========
 
 The default scheduler of Hadoop1 cannot deal with real-time jobs, so we add the real-time property to the job conf and change the scheduling stategy to ensure the real-time jobs.Several real-time strategies are applied and each are a scheduler here.  
-The strategy is realized as follows:
+The strategy is realized as follows:  
 1. add the real-time property to the job
 2. change the JobInProgressListener, and change the job queue in this file
 3. change the method assignTasks() in Scheduler.java, add a module that kills the job which miss the deadlie
