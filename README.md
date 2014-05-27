@@ -17,3 +17,5 @@ The job with earlier deadline will be scheduled first.
 The job will be scheduled first with a less spare-time.The spare-time is the remaining computing time minus from deadline.So the remaing computing time should be estimated first.
 # <element style="margin:0em 0px 12px; padding:0px; font-family:Microsoft YaHei; font-size:22px; color:rgb(32,136,178); line-height:32px">RMScheduler</element>
 The job will be scheduled first in the workflow with a shorter period.
+# <element style="margin:0em 0px 12px; padding:0px; font-family:Microsoft YaHei; font-size:22px; color:rgb(32,136,178); line-height:32px">TSDScheduler</element>
+The jobs are divided into CPU group and I/O group, and they will be scheduled alternately
