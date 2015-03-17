@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/EDS/EDS.iml" filepath="$PROJECT_DIR$/EDS/EDS.iml" />
+      <module fileurl="file://$PROJECT_DIR$/FIFO/FIFO.iml" filepath="$PROJECT_DIR$/FIFO/FIFO.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/JobTracker.iml" filepath="$PROJECT_DIR$/.idea/JobTracker.iml" />
+      <module fileurl="file://$PROJECT_DIR$/JobTracker.iml" filepath="$PROJECT_DIR$/JobTracker.iml" />
+      <module fileurl="file://$PROJECT_DIR$/LSS/LSS.iml" filepath="$PROJECT_DIR$/LSS/LSS.iml" />
+      <module fileurl="file://$PROJECT_DIR$/RMS/RMS.iml" filepath="$PROJECT_DIR$/RMS/RMS.iml" />
+    </modules>
+  </component>
+</project>
