@@ -81,6 +81,7 @@ public class ResourceOccupyRMS extends Thread {
       } catch (InterruptedException e) {
         // TODO Auto-generated catch block
         e.printStackTrace();
+        interrupt();
       }
     }
     try {
@@ -93,7 +94,7 @@ public class ResourceOccupyRMS extends Thread {
 
   void writeFile() throws IOException {
     BufferedWriter w = new BufferedWriter(new FileWriter(
-        "/usr/local/ResourceSplit"));
+        "/usr/local/ResourceSplit" + this.getClass().getSimpleName()));
     for (int i = 0; i < 1850; i++) {
       w.write(time[i] + "\t" + flow1[i][0] + "\t" + flow1[i][1] + "\t"
           + flow1[i][2] + "\t" + flow2[i][0] + "\t" + flow2[i][1]

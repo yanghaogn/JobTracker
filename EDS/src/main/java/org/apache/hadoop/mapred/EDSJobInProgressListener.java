@@ -4,7 +4,6 @@ package org.apache.hadoop.mapred;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -24,7 +23,6 @@ public class EDSJobInProgressListener extends JobInProgressListener {
     private long startTime;
     private JobID id;
     private long deadLine;//截止时间
-    public JobInProgress jip;
 
     public JobSchedulingInfo(JobInProgress jip) {
       this(jip.getStatus(), jip);
@@ -41,7 +39,6 @@ public class EDSJobInProgressListener extends JobInProgressListener {
       } else {
         deadLine = startTime + conf.getLong("user.deadline", 0) * 1000;
       }
-      this.jip = jip;
     }
 
 
@@ -71,7 +68,7 @@ public class EDSJobInProgressListener extends JobInProgressListener {
         JobSchedulingInfo that = (JobSchedulingInfo) obj;
         return (this.id.equals(that.id) &&
             this.startTime == that.startTime &&
-            this.priority == that.priority && this.deadLine == that.deadLine);
+            this.priority == that.priority);
       }
       return false;
     }
@@ -82,20 +79,22 @@ public class EDSJobInProgressListener extends JobInProgressListener {
     }
   }
 
-  static final Comparator<JobSchedulingInfo> EDF_JOB_QUEUE_COMPARATOR
+  static final Comparator<JobSchedulingInfo> EDS_JOB_QUEUE_COMPARATOR
       = new Comparator<JobSchedulingInfo>() {
     //o1的优先级若高于o2，则返回负数
     public int compare(JobSchedulingInfo o1, JobSchedulingInfo o2) {
-      /**
-       * 截止时间越短，优先级越高 
-       */
-      if (o1.getDeadLine() - o2.getDeadLine() < 0) {
-        return -1;
-      } else if (o1.getDeadLine() - o2.getDeadLine() > 0) {
-        return 1;
-      }
-      //FIFO调度器
+
       int res = o1.getPriority().compareTo(o2.getPriority());
+      if (res == 0) {
+        /**
+         * 截止时间越短，优先级越高 
+         */
+        if (o1.getDeadLine() - o2.getDeadLine() < 0) {
+          res = -1;
+        } else if (o1.getDeadLine() - o2.getDeadLine() > 0) {
+          res = 1;
+        }
+      }
       if (res == 0) {
         if (o1.getStartTime() < o2.getStartTime()) {
           res = -1;
@@ -114,7 +113,7 @@ public class EDSJobInProgressListener extends JobInProgressListener {
 
   public EDSJobInProgressListener() {
     this(new TreeMap<JobSchedulingInfo,
-        JobInProgress>(EDF_JOB_QUEUE_COMPARATOR));
+        JobInProgress>(EDS_JOB_QUEUE_COMPARATOR));
   }
 
   /**
@@ -140,10 +139,7 @@ public class EDSJobInProgressListener extends JobInProgressListener {
 
   @Override
   public void jobAdded(JobInProgress job) {
-    synchronized (jobQueue) {
-      jobQueue.put(new JobSchedulingInfo(job), job);
-
-    }
+    jobQueue.put(new JobSchedulingInfo(job), job);
   }
 
   // Job will be removed once the job completes
@@ -152,8 +148,7 @@ public class EDSJobInProgressListener extends JobInProgressListener {
   }
 
   private void jobCompleted(JobSchedulingInfo oldInfo) {
-    //jobQueue.remove(oldInfo);
-    this.reOrderJobs();
+    jobQueue.remove(oldInfo);
   }
 
   @Override
@@ -185,26 +180,6 @@ public class EDSJobInProgressListener extends JobInProgressListener {
     synchronized (jobQueue) {
       jobQueue.remove(oldInfo);
       jobQueue.put(new JobSchedulingInfo(job), job);
-    }
-  }
-
-  /**
-   * 对Job排序 首先设置空闲时间 根据空闲时间对Job排序
-   */
-  public synchronized void reOrderJobs() {
-    synchronized (jobQueue) {
-      // 插入到newQueue,排序
-      Map<JobSchedulingInfo, JobInProgress> newQueue = new TreeMap<JobSchedulingInfo, JobInProgress>(
-          EDF_JOB_QUEUE_COMPARATOR);
-      Iterator itrKey = jobQueue.keySet().iterator();
-      while (itrKey.hasNext()) {
-        JobSchedulingInfo info = (JobSchedulingInfo) itrKey.next();
-        if (info.jip.isComplete()) {
-          continue;
-        }
-        newQueue.put(info, info.jip);
-      }
-      jobQueue = newQueue;
     }
   }
 }

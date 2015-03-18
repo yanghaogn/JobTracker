@@ -1,3 +1,20 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.hadoop.mapred;
 
 import java.util.Collection;
@@ -76,15 +93,16 @@ public class LSSJobInProgressListener extends JobInProgressListener {
     }
 
     @Override
-    public boolean equals(Object other) {
-      if (other == null || other.getClass() != JobSchedulingInfo.class) {
+    public boolean equals(Object obj) {
+      if (obj == null || obj.getClass() != JobSchedulingInfo.class) {
         return false;
-      } else if (other == this) {
+      } else if (obj == this) {
         return true;
-      } else if (other instanceof JobSchedulingInfo) {
-        JobSchedulingInfo that = (JobSchedulingInfo) other;
-        return (this.id.equals(that.id)
-            && this.startTime == that.startTime && this.priority == that.priority);
+      } else if (obj instanceof JobSchedulingInfo) {
+        JobSchedulingInfo that = (JobSchedulingInfo) obj;
+        return (this.id.equals(that.id) &&
+            this.startTime == that.startTime &&
+            this.priority == that.priority);
       }
       return false;
     }
@@ -160,9 +178,9 @@ public class LSSJobInProgressListener extends JobInProgressListener {
 
   @Override
   public void jobAdded(JobInProgress job) {
-    synchronized (jobQueue) {
-      jobQueue.put(new JobSchedulingInfo(job), job);
-    }
+
+    jobQueue.put(new JobSchedulingInfo(job), job);
+
   }
 
   // Job will be removed once the job completes
@@ -171,9 +189,9 @@ public class LSSJobInProgressListener extends JobInProgressListener {
   }
 
   private void jobCompleted(JobSchedulingInfo oldInfo) {
-    synchronized (jobQueue) {
-      jobQueue.remove(oldInfo);
-    }
+
+    jobQueue.remove(oldInfo);
+
   }
 
   @Override

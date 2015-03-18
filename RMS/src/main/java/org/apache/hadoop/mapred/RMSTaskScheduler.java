@@ -1,9 +1,25 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.hadoop.mapred;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -11,41 +27,41 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 
-import org.apache.hadoop.mapred.EDSJobInProgressListener.JobSchedulingInfo;
+import org.apache.hadoop.mapred.RMSJobInProgressListener.JobSchedulingInfo;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
 
-public class EDSScheduler extends TaskScheduler {
+public class RMSTaskScheduler extends TaskScheduler {
 
   private static final int MIN_CLUSTER_SIZE_FOR_PADDING = 3;
   public static final Log LOG = LogFactory.getLog(JobQueueTaskScheduler.class);
 
 
-  protected EDSJobInProgressListener jobListener;
+  protected RMSJobInProgressListener rmsJobInProgressListener;
   protected EagerTaskInitializationListener eagerTaskInitializationListener;
   private float padFraction;
 
-  public EDSScheduler() {
-    this.jobListener = new EDSJobInProgressListener();
+  public RMSTaskScheduler() {
+    this.rmsJobInProgressListener = new RMSJobInProgressListener();
   }
 
   @Override
   public synchronized void start() throws IOException {
     super.start();
-    taskTrackerManager.addJobInProgressListener(jobListener);
+    taskTrackerManager.addJobInProgressListener(rmsJobInProgressListener);
     eagerTaskInitializationListener.setTaskTrackerManager(taskTrackerManager);
     eagerTaskInitializationListener.start();
     taskTrackerManager.addJobInProgressListener(
         eagerTaskInitializationListener);
 
     //启动后，统计不同工作流的资源占用情况
-    new ResourceOccupyEDS(jobListener).start();
+    new ResourceOccupyRMS(rmsJobInProgressListener).start();
   }
 
   @Override
   public synchronized void terminate() throws IOException {
-    if (jobListener != null) {
+    if (rmsJobInProgressListener != null) {
       taskTrackerManager.removeJobInProgressListener(
-          jobListener);
+          rmsJobInProgressListener);
     }
     if (eagerTaskInitializationListener != null) {
       taskTrackerManager.removeJobInProgressListener(
@@ -67,6 +83,12 @@ public class EDSScheduler extends TaskScheduler {
   @Override
   public synchronized List<Task> assignTasks(TaskTracker taskTracker)
       throws IOException {
+    // Check for JT safe-mode
+    if (taskTrackerManager.isInSafeMode()) {
+      LOG.info("JobTracker is in safe-mode, not scheduling any tasks.");
+      return null;
+    }
+
     TaskTrackerStatus taskTrackerStatus = taskTracker.getStatus();
     ClusterStatus clusterStatus = taskTrackerManager.getClusterStatus();
     final int numTaskTrackers = clusterStatus.getTaskTrackers();
@@ -74,7 +96,7 @@ public class EDSScheduler extends TaskScheduler {
     final int clusterReduceCapacity = clusterStatus.getMaxReduceTasks();
 
     Collection<JobInProgress> jobQueue =
-        jobListener.getJobQueue();
+        rmsJobInProgressListener.getJobQueue();
 
     //
     // Get map + reduce counts for the current tracker.
@@ -97,22 +119,17 @@ public class EDSScheduler extends TaskScheduler {
     synchronized (jobQueue) {
       //杀死超时的
       Map<JobSchedulingInfo, JobInProgress> map;
-      map = jobListener.getJobs();
+      map = rmsJobInProgressListener.getJobs();
       for (JobSchedulingInfo key : map.keySet()) {
         if (key.getDeadLine() <= System.currentTimeMillis()) {
           map.get(key).kill();
         }
       }
-    }
-
-    synchronized (jobQueue) {
       for (JobInProgress job : jobQueue) {
 
         if (job.getStatus().getRunState() == JobStatus.RUNNING) {
 
           remainingMapLoad += (job.desiredMaps() - job.finishedMaps());
-
-          if (remainingMapLoad >= 1) break;//大于1个，返回
           if (job.scheduleReduces()) {
             remainingReduceLoad +=
                 (job.desiredReduces() - job.finishedReduces());
@@ -150,9 +167,8 @@ public class EDSScheduler extends TaskScheduler {
     //
 
     final int trackerCurrentMapCapacity =
-        Math.min(11, Math.min((int) Math.ceil(mapLoadFactor * trackerMapCapacity),
-            trackerMapCapacity));
-
+        Math.min((int) Math.ceil(mapLoadFactor * trackerMapCapacity),
+            trackerMapCapacity);
     int availableMapSlots = trackerCurrentMapCapacity - trackerRunningMaps;
     boolean exceededMapPadding = false;
     if (availableMapSlots > 0) {
@@ -176,7 +192,8 @@ public class EDSScheduler extends TaskScheduler {
 
           Task t = null;
 
-          // Try to schedule a node-local or rack-local Map task
+          // Try to schedule a Map task with locality between node-local 
+          // and rack-local
           t =
               job.obtainNewNodeOrRackLocalMapTask(taskTrackerStatus,
                   numTaskTrackers, taskTrackerManager.getNumberOfUniqueHosts());
@@ -219,8 +236,8 @@ public class EDSScheduler extends TaskScheduler {
     // However we _never_ assign more than 1 reduce task per heartbeat
     //
     final int trackerCurrentReduceCapacity =
-        Math.min(11, Math.min((int) Math.ceil(reduceLoadFactor * trackerReduceCapacity),
-            trackerReduceCapacity));
+        Math.min((int) Math.ceil(reduceLoadFactor * trackerReduceCapacity),
+            trackerReduceCapacity);
     final int availableReduceSlots =
         Math.min((trackerCurrentReduceCapacity - trackerRunningReduces), 1);
     boolean exceededReducePadding = false;
@@ -281,7 +298,7 @@ public class EDSScheduler extends TaskScheduler {
             clusterStatus.getMaxReduceTasks();
 
     Collection<JobInProgress> jobQueue =
-        jobListener.getJobQueue();
+        rmsJobInProgressListener.getJobQueue();
 
     boolean exceededPadding = false;
     synchronized (jobQueue) {
@@ -317,7 +334,7 @@ public class EDSScheduler extends TaskScheduler {
 
   @Override
   public synchronized Collection<JobInProgress> getJobs(String queueName) {
-    return jobListener.getJobQueue();
+    return rmsJobInProgressListener.getJobQueue();
   }
 
 }

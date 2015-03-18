@@ -1,10 +1,26 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.hadoop.mapred;
 
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -88,7 +104,7 @@ public class RMSJobInProgressListener extends JobInProgressListener {
         JobSchedulingInfo that = (JobSchedulingInfo) obj;
         return (this.id.equals(that.id) &&
             this.startTime == that.startTime &&
-            this.priority == that.priority && this.deadLine == that.deadLine);
+            this.priority == that.priority);
       }
       return false;
     }
@@ -100,20 +116,22 @@ public class RMSJobInProgressListener extends JobInProgressListener {
 
   }
 
-  static final Comparator<JobSchedulingInfo> RM_JOB_QUEUE_COMPARATOR
+  static final Comparator<JobSchedulingInfo> RMS_JOB_QUEUE_COMPARATOR
       = new Comparator<JobSchedulingInfo>() {
     //o1的优先级若高于o2，则返回负数
     public int compare(JobSchedulingInfo o1, JobSchedulingInfo o2) {
-      /**
-       * 周期越短，优先级越高 
-       */
-      if (o1.getPeriod() - o2.getPeriod() < 0) {
-        return -1;
-      } else if (o1.getPeriod() - o2.getPeriod() > 0) {
-        return 1;
-      }
-      //FIFO调度器
+
       int res = o1.getPriority().compareTo(o2.getPriority());
+      if (res == 0) {
+        /**
+         * 周期越短，优先级越高 
+         */
+        if (o1.getPeriod() - o2.getPeriod() < 0) {
+          res = -1;
+        } else if (o1.getPeriod() - o2.getPeriod() > 0) {
+          res = 1;
+        }
+      }
       if (res == 0) {
         if (o1.getStartTime() < o2.getStartTime()) {
           res = -1;
@@ -132,7 +150,7 @@ public class RMSJobInProgressListener extends JobInProgressListener {
 
   public RMSJobInProgressListener() {
     this(new TreeMap<JobSchedulingInfo,
-        JobInProgress>(RM_JOB_QUEUE_COMPARATOR));
+        JobInProgress>(RMS_JOB_QUEUE_COMPARATOR));
   }
 
   /**
@@ -158,12 +176,11 @@ public class RMSJobInProgressListener extends JobInProgressListener {
 
   @Override
   public void jobAdded(JobInProgress job) {
-    synchronized (jobQueue) {
-
-      jobQueue.put(new JobSchedulingInfo(job), job);
 
 
-    }
+    jobQueue.put(new JobSchedulingInfo(job), job);
+
+
   }
 
   // Job will be removed once the job completes
@@ -172,10 +189,7 @@ public class RMSJobInProgressListener extends JobInProgressListener {
   }
 
   private void jobCompleted(JobSchedulingInfo oldInfo) {
-    synchronized (jobQueue) {
-      //jobQueue.remove(oldInfo);
-      this.reOrderJobs();
-    }
+    jobQueue.remove(oldInfo);
   }
 
   @Override
@@ -210,24 +224,5 @@ public class RMSJobInProgressListener extends JobInProgressListener {
     }
   }
 
-  /**
-   * 对Job排序 首先设置空闲时间 根据空闲时间对Job排序
-   */
 
-  public synchronized void reOrderJobs() {
-    synchronized (jobQueue) {
-      // 插入到newQueue,排序
-      Map<JobSchedulingInfo, JobInProgress> newQueue = new TreeMap<JobSchedulingInfo, JobInProgress>(
-          RM_JOB_QUEUE_COMPARATOR);
-      Iterator itrKey = jobQueue.keySet().iterator();
-      while (itrKey.hasNext()) {
-        JobSchedulingInfo info = (JobSchedulingInfo) itrKey.next();
-        if (info.jip.isComplete()) {
-          continue;
-        }
-        newQueue.put(info, info.jip);
-      }
-      jobQueue = newQueue;
-    }
-  }
 }

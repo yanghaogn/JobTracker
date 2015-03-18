@@ -1,73 +1,59 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.hadoop.mapred;
-
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 
-
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobStatusChangeEvent.EventType;
-import org.apache.hadoop.mapred.FIFOJobInProgressListener.JobSchedulingInfo;
-import org.apache.hadoop.mapreduce.Job;
 
+/**
+ * A {@link JobInProgressListener} that maintains the jobs being managed in
+ * a queue. By default the queue is FIFO, but it is possible to use custom
+ * queue ordering by using the
+ * {@link #FIFOJobInProgressListener(Collection)} constructor.
+ */
+class FIFOJobInProgressListener extends JobInProgressListener {
 
-public class FIFOJobInProgressListener extends JobInProgressListener {
-
-  /**
-   * A class that groups all the information from a {@link JobInProgress} that
+  /** A class that groups all the information from a {@link JobInProgress} that 
    * is necessary for scheduling a job.
    */
   static class JobSchedulingInfo {
     private JobPriority priority;
     private long startTime;
     private JobID id;
-    private long deadLine;
-    public JobInProgress jip;
 
     public JobSchedulingInfo(JobInProgress jip) {
-
-
-      this(jip.getStatus(), jip);
-
-
+      this(jip.getStatus());
     }
 
-    public JobSchedulingInfo(JobStatus status, JobInProgress jip) {
-      Configuration conf = jip.getJobConf();
-      this.jip = jip;
+    public JobSchedulingInfo(JobStatus status) {
       priority = status.getJobPriority();
       startTime = status.getStartTime();
       id = status.getJobID();
-
-      if (conf.getLong("user.deadline", Long.MAX_VALUE) == Long.MAX_VALUE) {
-        deadLine = Long.MAX_VALUE;
-      } else {
-        deadLine = startTime + conf.getLong("user.deadline", 0) * 1000;
-      }
-
-
     }
 
-
-    JobPriority getPriority() {
-      return priority;
-    }
-
-    long getStartTime() {
-      return startTime;
-    }
-
-    JobID getJobID() {
-      return id;
-    }
-
-    long getDeadLine() {
-      return deadLine;
-    }
+    JobPriority getPriority() {return priority;}
+    long getStartTime() {return startTime;}
+    JobID getJobID() {return id;}
 
     @Override
     public boolean equals(Object obj) {
@@ -75,28 +61,26 @@ public class FIFOJobInProgressListener extends JobInProgressListener {
         return false;
       } else if (obj == this) {
         return true;
-      } else if (obj instanceof JobSchedulingInfo) {
-        JobSchedulingInfo that = (JobSchedulingInfo) obj;
+      }
+      else if (obj instanceof JobSchedulingInfo) {
+        JobSchedulingInfo that = (JobSchedulingInfo)obj;
         return (this.id.equals(that.id) &&
             this.startTime == that.startTime &&
-            this.priority == that.priority && this.deadLine == that.deadLine);
+            this.priority == that.priority);
       }
       return false;
     }
 
     @Override
     public int hashCode() {
-      return (int) (id.hashCode() * priority.hashCode() + startTime);
+      return (int)(id.hashCode() * priority.hashCode() + startTime);
     }
 
   }
 
   static final Comparator<JobSchedulingInfo> FIFO_JOB_QUEUE_COMPARATOR
       = new Comparator<JobSchedulingInfo>() {
-    //o1的优先级若高于o2，则返回负数
     public int compare(JobSchedulingInfo o1, JobSchedulingInfo o2) {
-
-      //FIFO调度器
       int res = o1.getPriority().compareTo(o2.getPriority());
       if (res == 0) {
         if (o1.getStartTime() < o2.getStartTime()) {
@@ -108,7 +92,6 @@ public class FIFOJobInProgressListener extends JobInProgressListener {
       if (res == 0) {
         res = o1.getJobID().compareTo(o2.getJobID());
       }
-
       return res;
     }
   };
@@ -122,7 +105,6 @@ public class FIFOJobInProgressListener extends JobInProgressListener {
 
   /**
    * For clients that want to provide their own job priorities.
-   *
    * @param jobQueue A collection whose iterator returns jobs in priority order.
    */
   protected FIFOJobInProgressListener(Map<JobSchedulingInfo,
@@ -137,30 +119,17 @@ public class FIFOJobInProgressListener extends JobInProgressListener {
     return jobQueue.values();
   }
 
-  public Map<JobSchedulingInfo, JobInProgress> getJobs() {
-    return jobQueue;
-  }
-
   @Override
   public void jobAdded(JobInProgress job) {
-    synchronized (jobQueue) {
-
-      jobQueue.put(new JobSchedulingInfo(job), job);
-
-
-    }
+    jobQueue.put(new JobSchedulingInfo(job.getStatus()), job);
   }
 
   // Job will be removed once the job completes
   @Override
-  public void jobRemoved(JobInProgress job) {
-    job.getJobConf().setLong("OVER", 0000001);
-  }
+  public void jobRemoved(JobInProgress job) {}
 
   private void jobCompleted(JobSchedulingInfo oldInfo) {
-    synchronized (jobQueue) {
-      //jobQueue.remove(oldInfo);
-    }
+    jobQueue.remove(oldInfo);
   }
 
   @Override
@@ -169,9 +138,9 @@ public class FIFOJobInProgressListener extends JobInProgressListener {
     if (event instanceof JobStatusChangeEvent) {
       // Check if the ordering of the job has changed
       // For now priority and start-time can change the job ordering
-      JobStatusChangeEvent statusEvent = (JobStatusChangeEvent) event;
+      JobStatusChangeEvent statusEvent = (JobStatusChangeEvent)event;
       JobSchedulingInfo oldInfo =
-          new JobSchedulingInfo(statusEvent.getOldStatus(), job);
+          new JobSchedulingInfo(statusEvent.getOldStatus());
       if (statusEvent.getEventType() == EventType.PRIORITY_CHANGED
           || statusEvent.getEventType() == EventType.START_TIME_CHANGED) {
         // Make a priority change
@@ -194,4 +163,5 @@ public class FIFOJobInProgressListener extends JobInProgressListener {
       jobQueue.put(new JobSchedulingInfo(job), job);
     }
   }
+
 }

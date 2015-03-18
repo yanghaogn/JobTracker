@@ -7,7 +7,7 @@ import java.util.Collection;
 
 public class ResourceOccupyEDS extends Thread {
 
-  protected EDSJobInProgressListener jobListener;
+  protected EDSJobInProgressListener edsJobInProgressListener;
 
   int[][] flow1;
   int[][] flow2;
@@ -39,14 +39,14 @@ public class ResourceOccupyEDS extends Thread {
       flow4[i][1] = 0;
       flow4[i][2] = 0;
     }
-    jobListener = listen;
+    edsJobInProgressListener = listen;
   }
 
   public void run() {
 
     Collection<JobInProgress> jobQueue;
     for (int i = 0; i < 1850; i++) {
-      jobQueue = jobListener.getJobQueue();
+      jobQueue = edsJobInProgressListener.getJobQueue();
       synchronized (jobQueue) {
         for (JobInProgress job : jobQueue) {
           if (job.getJobConf().get("flow").contains("flow1")) {
@@ -81,6 +81,7 @@ public class ResourceOccupyEDS extends Thread {
       } catch (InterruptedException e) {
         // TODO Auto-generated catch block
         e.printStackTrace();
+        interrupt();
       }
     }
     try {
@@ -93,7 +94,7 @@ public class ResourceOccupyEDS extends Thread {
 
   void writeFile() throws IOException {
     BufferedWriter w = new BufferedWriter(new FileWriter(
-        "/usr/local/ResourceSplit"));
+        "/usr/local/ResourceSplit" + this.getClass().getSimpleName()));
     for (int i = 0; i < 1850; i++) {
       w.write(time[i] + "\t" + flow1[i][0] + "\t" + flow1[i][1] + "\t"
           + flow1[i][2] + "\t" + flow2[i][0] + "\t" + flow2[i][1]
