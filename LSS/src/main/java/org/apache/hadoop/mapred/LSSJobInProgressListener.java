@@ -1,27 +1,13 @@
 package org.apache.hadoop.mapred;
 
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Enumeration;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.Vector;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobStatusChangeEvent.EventType;
-import org.apache.hadoop.mapreduce.Job;
 
 public class LSSJobInProgressListener extends JobInProgressListener {
   /**
@@ -29,6 +15,7 @@ public class LSSJobInProgressListener extends JobInProgressListener {
    */
   public static int NUMMapSlots = 10;// 集群的Map Slots数目
   public static int NUMReduceSlots = 5;// 集群的Reduce Slots数目
+  public static double HeartbeatTime = 1.0 / new Configuration().getInt("mapred.heartbeats.in.second", 100);
 
   /**
    * A class that groups all the information from a {@link JobInProgress} that
@@ -41,7 +28,6 @@ public class LSSJobInProgressListener extends JobInProgressListener {
     private long deadLine;// 截止时间
     private double spareTime = 0;// 空闲时间
     public JobInProgress jip;
-    private double AvgTime = 0;// task平均执行时间
 
     public JobSchedulingInfo(JobInProgress jip) {
       this(jip.getStatus(), jip);
@@ -61,7 +47,6 @@ public class LSSJobInProgressListener extends JobInProgressListener {
       }
       spareTime = deadLine - System.currentTimeMillis();
       this.jip = jip;
-
     }
 
     JobPriority getPriority() {
@@ -90,23 +75,14 @@ public class LSSJobInProgressListener extends JobInProgressListener {
       spareTime = t;
     }
 
-    // 获取平均时间
-    double getAvgTime() {
-      return AvgTime;
-    }
-
-    void setAvgTime(double avg) {
-      AvgTime = avg;
-    }
-
     @Override
-    public boolean equals(Object obj) {
-      if (obj == null || obj.getClass() != JobSchedulingInfo.class) {
+    public boolean equals(Object other) {
+      if (other == null || other.getClass() != JobSchedulingInfo.class) {
         return false;
-      } else if (obj == this) {
+      } else if (other == this) {
         return true;
-      } else if (obj instanceof JobSchedulingInfo) {
-        JobSchedulingInfo that = (JobSchedulingInfo) obj;
+      } else if (other instanceof JobSchedulingInfo) {
+        JobSchedulingInfo that = (JobSchedulingInfo) other;
         return (this.id.equals(that.id)
             && this.startTime == that.startTime && this.priority == that.priority);
       }
@@ -117,35 +93,28 @@ public class LSSJobInProgressListener extends JobInProgressListener {
     public int hashCode() {
       return (int) (id.hashCode() * priority.hashCode() + startTime);
     }
-
   }
 
-  static final Comparator<JobSchedulingInfo> LLF_JOB_QUEUE_COMPARATOR = new Comparator<JobSchedulingInfo>() {
+  public static final Comparator<JobSchedulingInfo> LSS_JOB_QUEUE_COMPARATOR = new Comparator<JobSchedulingInfo>() {
     // 若o1的优先级高于o2，则返回负数
     public int compare(JobSchedulingInfo o1, JobSchedulingInfo o2) {
-      /**
-       * 空闲时间>0,空闲时间越短，优先级越高
-       * 若存在job的空闲时间<0,空闲时间越长，优先级越高
-       */
-      double d1 = o1.getSpareTime();
-      double d2 = o2.getSpareTime();
-      if (d1 >= 0 && d2 >= 0) {
-        if (d1 - d2 < 0) {
-          return -1;
-        } else if (d1 - d2 > 0) {
-          return 1;
-        }
-      }
-      if (d1 <= 0 || d2 <= 0) {
-        if (d1 - d2 < 0) {
-          return 1;
-        } else if (d1 - d2 > 0) {
-          return -1;
-        }
-      }
+
 
       // FIFO调度器
       int res = o1.getPriority().compareTo(o2.getPriority());
+      if (res == 0) {
+        /**
+         * 空闲时间>0,空闲时间越短，优先级越高
+         * 若存在job的空闲时间<0,空闲时间越长，优先级越高
+         */
+        double d1 = o1.getSpareTime();
+        double d2 = o2.getSpareTime();
+        if (d1 - d2 < 0) {
+          res = -1;
+        } else if (d1 - d2 > 0) {
+          res = 1;
+        }
+      }
       if (res == 0) {
         if (o1.getStartTime() < o2.getStartTime()) {
           res = -1;
@@ -165,7 +134,7 @@ public class LSSJobInProgressListener extends JobInProgressListener {
 
   public LSSJobInProgressListener() {
     this(new TreeMap<JobSchedulingInfo, JobInProgress>(
-        LLF_JOB_QUEUE_COMPARATOR));
+        LSS_JOB_QUEUE_COMPARATOR));
   }
 
   /**
@@ -239,19 +208,24 @@ public class LSSJobInProgressListener extends JobInProgressListener {
     }
   }
 
-  /**
-   * 根据JobInProgress获取相应的JobSchedulingInfo
-   */
-  public JobSchedulingInfo getJobSchedulingInfo(JobInProgress job) {
-    Map<JobSchedulingInfo, JobInProgress> map = jobQueue;
 
-    for(JobSchedulingInfo info: map.keySet()){
-      JobInProgress value =  map.get(info);
-      if (value.getJobID().equals(job.getJobID()))
-        return info;
-
+  double calRemainingTime(double avgTime, int totalSlots, int numWaiting, int numRunning, double maxExectime, double minExectime) {
+    if (numWaiting + numRunning <= 0) {
+      return 0;
     }
-    return null;
+    double remainingTime = 0;
+    remainingTime += numWaiting / totalSlots * (avgTime + 0.5 * HeartbeatTime);
+    numWaiting -= numWaiting / totalSlots * totalSlots;
+    if (numRunning + numWaiting <= totalSlots) {
+      if (numWaiting == 0) {
+        remainingTime += avgTime - minExectime;
+      } else {
+        remainingTime += avgTime + 0.5 * HeartbeatTime;
+      }
+    } else {
+      remainingTime += avgTime + 0.5 * HeartbeatTime + avgTime - maxExectime;
+    }
+    return remainingTime;
   }
 
   /**
@@ -261,178 +235,92 @@ public class LSSJobInProgressListener extends JobInProgressListener {
     synchronized (jobQueue) {
 
       // 设置空闲时间
-      for(JobSchedulingInfo info :jobQueue.keySet()){
-        JobInProgress jip = info.jip;
-        try {
-          double AvgTaskTime = getAvgTaskTime(jip);
-          if (0 < AvgTaskTime) {
-            // 任务的平均时间
-            int NumMaps = jip.desiredMaps() - jip.finishedMaps();
-            int NumReduce = jip.desiredReduces()
-                - jip.finishedReduces();// unFinishedd reduce
-            // task数目
-            int numMapSlot = NumMaps
-                / LSSJobInProgressListener.NUMMapSlots;
-            int numReduceSlot = NumReduce
-                / LSSJobInProgressListener.NUMReduceSlots;
+      for (JobSchedulingInfo jobInfo : jobQueue.keySet()) {
+        JobInProgress jip = jobInfo.jip;
 
-            if (numMapSlot * LSSJobInProgressListener.NUMMapSlots < NumMaps)
-              numMapSlot++;
-
-            if (numReduceSlot
-                * LSSJobInProgressListener.NUMReduceSlots < NumReduce)
-              numReduceSlot++;
-
-            double remainingTime = (numReduceSlot + numMapSlot)
-                * AvgTaskTime;// 任务的剩余时间
-
-            // remaingTime-=正在运行的map task的执行时间/Map槽数
-            if (0 < jip.runningMaps()) {
-              TaskInProgress[] maps = jip.maps;
-              double runningMapTime = 0;
-              for (int i = 0; i < maps.length; i++) {
-                if (maps[i].isRunning()
-                    && System.currentTimeMillis()
-                    - maps[i].getExecStartTime() > 0) {
-                  runningMapTime += System
-                      .currentTimeMillis()
-                      - maps[i].getExecStartTime();
-                }
+        if (jip.finishedMaps() + jip.finishedReduces() > 0) {
+          int numRunningMap = 0;
+          int numRunningReduce = 0;
+          int numFinished = 0;
+          int numWaitingMap = 0;
+          int numWaitingReduce = 0;
+          double totalFinishedTime = 0;
+          double maxRunningTime = 0;
+          double minRunningTime = Integer.MAX_VALUE;
+          for (TaskInProgress tip : jip.maps) {
+            if (tip.isFailed()) {
+              continue;
+            }
+            if (tip.isComplete()) {
+              totalFinishedTime = tip.getExecFinishTime() - tip.getExecStartTime();
+              numFinished++;
+            } else {
+              if (tip.isRunning()) {
+                numRunningMap++;
+                maxRunningTime = Math.max(maxRunningTime, System.currentTimeMillis() - tip
+                    .getExecStartTime());
+                minRunningTime = Math.min(minRunningTime, System.currentTimeMillis() - tip
+                    .getExecStartTime());
+              } else {
+                numWaitingMap++;
               }
-              remainingTime -= runningMapTime
-                  / LSSJobInProgressListener.NUMMapSlots;
             }
-            // remainingTime-=正在运行的reduce task的执行时间／reduce槽数
-            if (0 < jip.runningReduces()) {
-              // 加上正在运行的reduce task的执行时间
-              TaskInProgress[] reduces = jip.reduces;
-              double runningReduceTime = 0;
-              for (int i = 0; i < reduces.length; i++) {
-                if (reduces[i].isRunning()
-                    && System.currentTimeMillis()
-                    - reduces[i].getExecStartTime() > 0) {
-                  runningReduceTime += System
-                      .currentTimeMillis()
-                      - reduces[i].getExecStartTime();
-                }
-              }
-              remainingTime -= runningReduceTime
-                  / LSSJobInProgressListener.NUMReduceSlots;
-            }
-            double spareTime = info.getDeadLine()
-                - System.currentTimeMillis() - remainingTime;
-            info.setSpareTime(spareTime);
-            info.setAvgTime(AvgTaskTime);
-            if (info.getSpareTime() + info.getAvgTime() <= 0) {
-              String content = "" + info.jip.getJobID()
-                  + "\tSpareTime:" + spareTime
-                  + "\tAvgTaskTime:" + AvgTaskTime;
-              content += "\nUnFinishedMaps:" + NumMaps
-                  + "\tUnFinishedReduce:" + NumReduce;
-              content += "\ndeadLine:"
-                  + (info.getDeadLine() - System
-                  .currentTimeMillis())
-                  + "\tremainingTime:" + remainingTime;
-              content += "\nExecTime:"
-                  + (System.currentTimeMillis() - info.jip.startTime);
-              writeFile("/SpareTime/" + info.jip.getJobID() + "."
-                  + System.currentTimeMillis(), content);
-            }
-          } else {
-            info.setSpareTime(info.getDeadLine()
-                - System.currentTimeMillis());
           }
-        } catch (Exception e) {
-
-          info.setSpareTime(info.getDeadLine()
+          for (TaskInProgress tip : jip.reduces) {
+            if (tip.isFailed()) {
+              continue;
+            }
+            if (tip.isComplete()) {
+              totalFinishedTime = tip.getExecFinishTime() - tip.getExecStartTime();
+              numFinished++;
+            } else {
+              if (tip.isRunning()) {
+                numRunningReduce++;
+                maxRunningTime = Math.max(maxRunningTime, System.currentTimeMillis() - tip
+                    .getExecStartTime());
+                minRunningTime = Math.min(minRunningTime, System.currentTimeMillis() - tip
+                    .getExecStartTime());
+              } else {
+                numWaitingReduce++;
+              }
+            }
+          }
+          double avgTime = totalFinishedTime / numFinished;
+          double remainingTime = calRemainingTime(avgTime, NUMMapSlots, numWaitingMap, numRunningMap, maxRunningTime, minRunningTime);
+          remainingTime += calRemainingTime(avgTime, NUMReduceSlots, numWaitingReduce, numRunningReduce, maxRunningTime, minRunningTime);
+          double spareTime = jobInfo.getDeadLine()
+              - System.currentTimeMillis() - remainingTime;
+          jobInfo.setSpareTime(spareTime);
+        } else {
+          jobInfo.setSpareTime(jobInfo.getDeadLine()
               - System.currentTimeMillis());
         }
-
       }
-
-      // 插入到newQueue,排序
-      Map<JobSchedulingInfo, JobInProgress> newQueue = new TreeMap<JobSchedulingInfo, JobInProgress>(
-          LLF_JOB_QUEUE_COMPARATOR);
-      for (JobSchedulingInfo info : jobQueue.keySet()) {
-        newQueue.put(info, info.jip);
+      // 重新排序
+      TreeMap<JobSchedulingInfo, JobInProgress> tempQueue = new TreeMap<JobSchedulingInfo, JobInProgress>(
+          LSS_JOB_QUEUE_COMPARATOR);
+      for (JobSchedulingInfo jobInfo : jobQueue.keySet()) {
+        tempQueue.put(jobInfo, jobInfo.jip);
       }
-      jobQueue = newQueue;
+      jobQueue.clear();
+      jobQueue.putAll(tempQueue);
     }
   }
 
-  /*
+  /**
    * 删掉超时的，或者会超时的
    */
   public synchronized void killSpillDeadline() {
     synchronized (jobQueue) {
-      for(JobSchedulingInfo info : jobQueue.keySet()) {
-        if (info.getDeadLine() <= System.currentTimeMillis()) {
+      for (JobSchedulingInfo info : jobQueue.keySet()) {
+        if (info.getDeadLine() < System.currentTimeMillis()) {
           info.jip.kill();
         }
-        // 空闲时间+平均时间<=0,则kill
-        else if (info.getSpareTime() + info.getAvgTime() <= 0) {
+        // 空闲时间 + 0.5 * HeartbeatTime<=0,则kill
+        else if (info.getSpareTime() + 0.5 * HeartbeatTime <= 0) {
           info.jip.kill();
         }
       }
-    }
-  }
-
-  /**
-   * 存在返回正常值 不存在，返回 0
-   */
-  public synchronized double getAvgTaskTime(JobInProgress job) {
-    double totalTime = 0, num = 0;
-    Vector<TaskInProgress> finishedMaps = job.reportTasksInProgress(true,
-        true);
-    for (TaskInProgress task : finishedMaps) {
-      totalTime += task.getExecFinishTime() - task.getExecStartTime();
-    }
-
-    Vector<TaskInProgress> finishedReduces = job.reportTasksInProgress(
-        false, true);
-    for (TaskInProgress task : finishedReduces) {
-      totalTime += task.getExecFinishTime() - task.getExecStartTime();
-    }
-
-    num = finishedMaps.size() + finishedReduces.size();
-    if (num > 0) {
-      return totalTime / num;
-    } else
-      return 0;
-  }
-
-  /**
-   * 写文件
-   */
-  public synchronized void writeFile(String path, String content) {
-    try {
-      Enumeration allNetInterfaces;
-      try {
-        allNetInterfaces = NetworkInterface.getNetworkInterfaces();
-        InetAddress ip = null;
-        while (allNetInterfaces.hasMoreElements()) {
-          NetworkInterface netInterface = (NetworkInterface) allNetInterfaces
-              .nextElement();
-          // System.out.println(netInterface.getName());
-          Enumeration addresses = netInterface.getInetAddresses();
-          while (addresses.hasMoreElements()) {
-            ip = (InetAddress) addresses.nextElement();
-            if (ip != null && ip instanceof Inet4Address) {
-              content += "\n本机的IP = " + ip.getHostAddress();
-            }
-          }
-        }
-      } catch (SocketException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-      }
-      content += "\nCurrentTime:" + System.currentTimeMillis();
-      FileSystem fs = FileSystem.get(new Configuration());
-      FSDataOutputStream out = fs.create(new Path(path));
-      out.writeUTF(content);
-      out.close();
-
-    } catch (Exception e) {
     }
   }
 }

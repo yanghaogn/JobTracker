@@ -166,7 +166,6 @@ public class LSSScheduler extends TaskScheduler {
     synchronized (jobQueue) {
       //排序
       jobListener.reOrderJobs();
-      //删掉超时的
       jobListener.killSpillDeadline();
       jobQueue = jobListener.getJobQueue();
     }

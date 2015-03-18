@@ -37,7 +37,7 @@ public class EDSScheduler extends TaskScheduler {
     taskTrackerManager.addJobInProgressListener(
         eagerTaskInitializationListener);
 
-    //启动后，统计不同工作流的资源占用情况		
+    //启动后，统计不同工作流的资源占用情况
     new ResourceOccupyEDS(jobListener).start();
   }
 
@@ -93,14 +93,13 @@ public class EDSScheduler extends TaskScheduler {
     int remainingReduceLoad = 0;
     int remainingMapLoad = 0;
 
-    int numJOB = 0;
 
     synchronized (jobQueue) {
       //杀死超时的
       Map<JobSchedulingInfo, JobInProgress> map;
       map = jobListener.getJobs();
-      for(JobSchedulingInfo key : map.keySet() ){
-        if (key.getDeadLine() <= System.currentTimeMillis()){
+      for (JobSchedulingInfo key : map.keySet()) {
+        if (key.getDeadLine() <= System.currentTimeMillis()) {
           map.get(key).kill();
         }
       }
@@ -110,8 +109,6 @@ public class EDSScheduler extends TaskScheduler {
       for (JobInProgress job : jobQueue) {
 
         if (job.getStatus().getRunState() == JobStatus.RUNNING) {
-
-          numJOB++;
 
           remainingMapLoad += (job.desiredMaps() - job.finishedMaps());
 

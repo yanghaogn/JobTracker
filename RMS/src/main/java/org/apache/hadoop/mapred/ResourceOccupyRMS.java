@@ -49,28 +49,23 @@ public class ResourceOccupyRMS extends Thread {
       jobQueue = jobListener.getJobQueue();
       synchronized (jobQueue) {
         for (JobInProgress job : jobQueue) {
-
-          try {
-            if (job.getJobConf().get("flow").contains("flow1")) {
-              flow1[i][0] += job.runningMaps();
-              flow1[i][1] += job.runningReduces();
-            }
-            if (job.getJobConf().get("flow").contains("flow2")) {
-
-              flow2[i][0] += job.runningMaps();
-              flow2[i][1] += job.runningReduces();
-            }
-            if (job.getJobConf().get("flow").contains("flow3")) {
-              flow3[i][0] += job.runningMaps();
-              flow3[i][1] += job.runningReduces();
-            }
-            if (job.getJobConf().get("flow").contains("flow4")) {
-              flow4[i][0] += job.runningMaps();
-              flow4[i][1] += job.runningReduces();
-            }
-          } catch (Exception e) {
+          if (job.getJobConf().get("flow").contains("flow1")) {
+            flow1[i][0] += job.runningMaps();
+            flow1[i][1] += job.runningReduces();
           }
+          if (job.getJobConf().get("flow").contains("flow2")) {
 
+            flow2[i][0] += job.runningMaps();
+            flow2[i][1] += job.runningReduces();
+          }
+          if (job.getJobConf().get("flow").contains("flow3")) {
+            flow3[i][0] += job.runningMaps();
+            flow3[i][1] += job.runningReduces();
+          }
+          if (job.getJobConf().get("flow").contains("flow4")) {
+            flow4[i][0] += job.runningMaps();
+            flow4[i][1] += job.runningReduces();
+          }
         }
       }
 
@@ -87,7 +82,6 @@ public class ResourceOccupyRMS extends Thread {
         // TODO Auto-generated catch block
         e.printStackTrace();
       }
-
     }
     try {
       writeFile();
