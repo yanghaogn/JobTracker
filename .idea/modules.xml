@@ -4,9 +4,9 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/EDS/EDS.iml" filepath="$PROJECT_DIR$/EDS/EDS.iml" />
       <module fileurl="file://$PROJECT_DIR$/FIFO/FIFO.iml" filepath="$PROJECT_DIR$/FIFO/FIFO.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/JobTracker.iml" filepath="$PROJECT_DIR$/.idea/JobTracker.iml" />
       <module fileurl="file://$PROJECT_DIR$/LSS/LSS.iml" filepath="$PROJECT_DIR$/LSS/LSS.iml" />
       <module fileurl="file://$PROJECT_DIR$/RMS/RMS.iml" filepath="$PROJECT_DIR$/RMS/RMS.iml" />
+      <module fileurl="file://$PROJECT_DIR$/jobtracker.iml" filepath="$PROJECT_DIR$/jobtracker.iml" />
     </modules>
   </component>
 </project>
