@@ -28,11 +28,15 @@ import java.util.TreeMap;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobStatusChangeEvent.EventType;
 
-
+/**
+ * A {@link JobInProgressListener} that maintains the jobs being managed in
+ * a queue. By default the queue is FIFO, but it is possible to use custom
+ * queue ordering by using the
+ * {@link #RMSJobInProgressListener(Collection)} constructor.
+ */
 public class RMSJobInProgressListener extends JobInProgressListener {
 
-  /**
-   * A class that groups all the information from a {@link JobInProgress} that
+  /** A class that groups all the information from a {@link JobInProgress} that 
    * is necessary for scheduling a job.
    */
   static class JobSchedulingInfo {
@@ -113,7 +117,6 @@ public class RMSJobInProgressListener extends JobInProgressListener {
     public int hashCode() {
       return (int) (id.hashCode() * priority.hashCode() + startTime);
     }
-
   }
 
   static final Comparator<JobSchedulingInfo> RMS_JOB_QUEUE_COMPARATOR
@@ -176,11 +179,7 @@ public class RMSJobInProgressListener extends JobInProgressListener {
 
   @Override
   public void jobAdded(JobInProgress job) {
-
-
     jobQueue.put(new JobSchedulingInfo(job), job);
-
-
   }
 
   // Job will be removed once the job completes
@@ -223,6 +222,4 @@ public class RMSJobInProgressListener extends JobInProgressListener {
       jobQueue.put(new JobSchedulingInfo(job), job);
     }
   }
-
-
 }

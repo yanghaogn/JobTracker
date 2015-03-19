@@ -7,7 +7,7 @@ import java.util.Collection;
 
 public class ResourceOccupyRMS extends Thread {
 
-  protected RMSJobInProgressListener jobListener;
+  protected RMSJobInProgressListener rmsJobInProgressListener;
 
   int[][] flow1;
   int[][] flow2;
@@ -15,7 +15,7 @@ public class ResourceOccupyRMS extends Thread {
   int[][] flow4;
   long[] time;
 
-  ResourceOccupyRMS(RMSJobInProgressListener listen) {
+  ResourceOccupyRMS(RMSJobInProgressListener rmsJobInProgressListener1) {
     flow1 = new int[1850][3];
     flow2 = new int[1850][3];
     flow3 = new int[1850][3];
@@ -39,14 +39,14 @@ public class ResourceOccupyRMS extends Thread {
       flow4[i][1] = 0;
       flow4[i][2] = 0;
     }
-    jobListener = listen;
+    rmsJobInProgressListener = rmsJobInProgressListener1;
   }
 
   public void run() {
 
     Collection<JobInProgress> jobQueue;
     for (int i = 0; i < 1850; i++) {
-      jobQueue = jobListener.getJobQueue();
+      jobQueue = rmsJobInProgressListener.getJobQueue();
       synchronized (jobQueue) {
         for (JobInProgress job : jobQueue) {
           if (job.getJobConf().get("flow").contains("flow1")) {
@@ -79,7 +79,6 @@ public class ResourceOccupyRMS extends Thread {
       try {
         sleep(1000);
       } catch (InterruptedException e) {
-        // TODO Auto-generated catch block
         e.printStackTrace();
         interrupt();
       }
@@ -87,7 +86,6 @@ public class ResourceOccupyRMS extends Thread {
     try {
       writeFile();
     } catch (IOException e) {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
   }

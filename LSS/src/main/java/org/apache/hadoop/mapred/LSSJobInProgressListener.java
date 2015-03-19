@@ -17,11 +17,7 @@
  */
 package org.apache.hadoop.mapred;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobStatusChangeEvent.EventType;
@@ -88,8 +84,8 @@ public class LSSJobInProgressListener extends JobInProgressListener {
     }
 
     // 设置空闲时间
-    void setSpareTime(double t) {
-      spareTime = t;
+    void setSpareTime(double time) {
+      spareTime = time;
     }
 
     @Override
@@ -227,7 +223,7 @@ public class LSSJobInProgressListener extends JobInProgressListener {
   }
 
 
-  double calRemainingTime(double avgTime, int totalSlots, int numWaiting, int numRunning, double maxExectime, double minExectime) {
+  double calRemainingTime(double avgTime, int totalSlots, int numWaiting, int numRunning, List<Long> listExecTime) {
     if (numWaiting + numRunning <= 0) {
       return 0;
     }
@@ -236,12 +232,14 @@ public class LSSJobInProgressListener extends JobInProgressListener {
     numWaiting -= numWaiting / totalSlots * totalSlots;
     if (numRunning + numWaiting <= totalSlots) {
       if (numWaiting == 0) {
-        remainingTime += avgTime - minExectime;
+        if (numRunning > 0) {
+          remainingTime += avgTime - listExecTime.get(0);
+        }
       } else {
         remainingTime += avgTime + 0.5 * HeartbeatTime;
       }
     } else {
-      remainingTime += avgTime + 0.5 * HeartbeatTime + avgTime - maxExectime;
+      remainingTime += avgTime + 0.5 * HeartbeatTime + avgTime - listExecTime.get(totalSlots - numWaiting);
     }
     return remainingTime;
   }
@@ -251,7 +249,6 @@ public class LSSJobInProgressListener extends JobInProgressListener {
    */
   public synchronized void reOrderJobs() {
     synchronized (jobQueue) {
-
       // 设置空闲时间
       for (JobSchedulingInfo jobInfo : jobQueue.keySet()) {
         JobInProgress jip = jobInfo.jip;
@@ -263,8 +260,7 @@ public class LSSJobInProgressListener extends JobInProgressListener {
           int numWaitingMap = 0;
           int numWaitingReduce = 0;
           double totalFinishedTime = 0;
-          double maxRunningTime = 0;
-          double minRunningTime = Integer.MAX_VALUE;
+          List<Long> listExecTime = new LinkedList<Long>();
           for (TaskInProgress tip : jip.maps) {
             if (tip.isFailed()) {
               continue;
@@ -275,9 +271,7 @@ public class LSSJobInProgressListener extends JobInProgressListener {
             } else {
               if (tip.isRunning()) {
                 numRunningMap++;
-                maxRunningTime = Math.max(maxRunningTime, System.currentTimeMillis() - tip
-                    .getExecStartTime());
-                minRunningTime = Math.min(minRunningTime, System.currentTimeMillis() - tip
+                listExecTime.add(System.currentTimeMillis() - tip
                     .getExecStartTime());
               } else {
                 numWaitingMap++;
@@ -294,18 +288,17 @@ public class LSSJobInProgressListener extends JobInProgressListener {
             } else {
               if (tip.isRunning()) {
                 numRunningReduce++;
-                maxRunningTime = Math.max(maxRunningTime, System.currentTimeMillis() - tip
-                    .getExecStartTime());
-                minRunningTime = Math.min(minRunningTime, System.currentTimeMillis() - tip
+                listExecTime.add(System.currentTimeMillis() - tip
                     .getExecStartTime());
               } else {
                 numWaitingReduce++;
               }
             }
           }
+          Collections.sort(listExecTime);
           double avgTime = totalFinishedTime / numFinished;
-          double remainingTime = calRemainingTime(avgTime, NUMMapSlots, numWaitingMap, numRunningMap, maxRunningTime, minRunningTime);
-          remainingTime += calRemainingTime(avgTime, NUMReduceSlots, numWaitingReduce, numRunningReduce, maxRunningTime, minRunningTime);
+          double remainingTime = calRemainingTime(avgTime, NUMMapSlots, numWaitingMap, numRunningMap, listExecTime);
+          remainingTime += calRemainingTime(avgTime, NUMReduceSlots, numWaitingReduce, numRunningReduce, listExecTime);
           double spareTime = jobInfo.getDeadLine()
               - System.currentTimeMillis() - remainingTime;
           jobInfo.setSpareTime(spareTime);

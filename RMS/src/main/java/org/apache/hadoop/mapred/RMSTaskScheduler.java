@@ -30,6 +30,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.RMSJobInProgressListener.JobSchedulingInfo;
 import org.apache.hadoop.mapreduce.server.jobtracker.TaskTracker;
 
+/**
+ * A {@link TaskScheduler} that keeps jobs in a queue in priority order (RM
+ * by default).
+ */
 public class RMSTaskScheduler extends TaskScheduler {
 
   private static final int MIN_CLUSTER_SIZE_FOR_PADDING = 3;
