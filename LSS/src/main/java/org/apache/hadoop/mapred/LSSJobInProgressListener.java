@@ -26,9 +26,9 @@ public class LSSJobInProgressListener extends JobInProgressListener {
   /**
    * 集群的状态
    */
-  public static int NUMMapSlots = 10;// 集群的Map Slots数目
-  public static int NUMReduceSlots = 5;// 集群的Reduce Slots数目
-  public static double HeartbeatTime = 1.0 / new Configuration().getInt("mapred.heartbeats.in.second", 100);
+  public static int NUMMapSlots ;// 集群的Map Slots数目
+  public static int NUMReduceSlots ;// 集群的Reduce Slots数目
+  public static double HeartbeatTime ;
 
   /**
    * A class that groups all the information from a {@link JobInProgress} that
