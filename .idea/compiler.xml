@@ -23,6 +23,7 @@
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="true" />
         <module name="EDS" />
+        <module name="experiment" />
         <module name="FIFO" />
         <module name="LSS" />
         <module name="RMS" />

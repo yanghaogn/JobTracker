@@ -13,6 +13,7 @@
     <module>FIFO</module>
     <module>LSS</module>
     <module>RMS</module>
+    <module>experiment</module>
   </modules>
   <dependencies>
     <dependency>
