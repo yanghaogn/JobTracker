@@ -1,8 +1,8 @@
-#nohup -x bin/hadoop jar ClusterStatus.jar 
+#! /bin/bash
 
-nohup sh ./flow1.sh &
+gnome-terminal -x sh ./flow1.sh 
 
-nohup sh ./flow2.sh &
+gnome-terminal -x sh ./flow2.sh 
 
-nohup sh ./flow3.sh &
+gnome-terminal -x sh ./flow3.sh 
 

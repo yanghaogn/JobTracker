@@ -1,13 +1,13 @@
-640M
+800M
 ```
-bin/hadoop jar hadoop-examples-1.2.1.jar randomtextwriter  -D test.randomtextwrite.total_bytes=653262848 /wordcount/640
+bin/hadoop jar hadoop-examples-1.2.1.jar randomtextwriter  -D test.randomtextwrite.total_bytes=816578560 /wordcount/800
 ```
-1.03G
+1.89G
 ```
-bin/hadoop jar hadoop-examples-1.2.1.jar randomtextwriter  -D test.randomtextwrite.total_bytes=1306525100 /wordcount/1030
+bin/hadoop jar hadoop-examples-1.2.1.jar randomtextwriter  -D test.randomtextwrite.total_bytes=1974634526 -D test.randomtextwrite.bytes_per_map=1974634526 /wordcount/1890
 ```
 
-3.35G
+4.78G
 ```
-bin/hadoop jar hadoop-examples-1.2.1.jar randomtextwriter  -D test.randomtextwrite.total_bytes=3597035110 /wordcount/3350
+bin/hadoop jar hadoop-examples-1.2.1.jar randomtextwriter  -D test.randomtextwrite.total_bytes=5234491391 -D test.randomtextwrite.bytes_per_map=5234491391 /wordcount/4780
 ```

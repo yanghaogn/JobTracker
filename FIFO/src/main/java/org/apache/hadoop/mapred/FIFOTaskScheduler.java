@@ -127,11 +127,11 @@ class FIFOTaskScheduler extends TaskScheduler {
     // Compute the 'load factor' for maps and reduces
     double mapLoadFactor = 0.0;
     if (clusterMapCapacity > 0) {
-      mapLoadFactor = (double)remainingMapLoad / clusterMapCapacity;
+      mapLoadFactor = (double) remainingMapLoad / clusterMapCapacity;
     }
     double reduceLoadFactor = 0.0;
     if (clusterReduceCapacity > 0) {
-      reduceLoadFactor = (double)remainingReduceLoad / clusterReduceCapacity;
+      reduceLoadFactor = (double) remainingReduceLoad / clusterReduceCapacity;
     }
 
     //
@@ -152,7 +152,7 @@ class FIFOTaskScheduler extends TaskScheduler {
     //
 
     final int trackerCurrentMapCapacity =
-        Math.min((int)Math.ceil(mapLoadFactor * trackerMapCapacity),
+        Math.min((int) Math.ceil(mapLoadFactor * trackerMapCapacity),
             trackerMapCapacity);
     int availableMapSlots = trackerCurrentMapCapacity - trackerRunningMaps;
     boolean exceededMapPadding = false;
@@ -164,7 +164,7 @@ class FIFOTaskScheduler extends TaskScheduler {
     int numLocalMaps = 0;
     int numNonLocalMaps = 0;
     scheduleMaps:
-    for (int i=0; i < availableMapSlots; ++i) {
+    for (int i = 0; i < availableMapSlots; ++i) {
       synchronized (jobQueue) {
         for (JobInProgress job : jobQueue) {
           if (job.getStatus().getRunState() != JobStatus.RUNNING) {
@@ -217,7 +217,7 @@ class FIFOTaskScheduler extends TaskScheduler {
     // However we _never_ assign more than 1 reduce task per heartbeat
     //
     final int trackerCurrentReduceCapacity =
-        Math.min((int)Math.ceil(reduceLoadFactor * trackerReduceCapacity),
+        Math.min((int) Math.ceil(reduceLoadFactor * trackerReduceCapacity),
             trackerReduceCapacity);
     final int availableReduceSlots =
         Math.min((trackerCurrentReduceCapacity - trackerRunningReduces), 1);
@@ -260,7 +260,7 @@ class FIFOTaskScheduler extends TaskScheduler {
           ")] [" + reduceLoadFactor + ", " + trackerReduceCapacity + ", " +
           trackerCurrentReduceCapacity + "," + trackerRunningReduces +
           "] -> [" + (trackerCurrentReduceCapacity - trackerRunningReduces) +
-          ", " + (assignedTasks.size()-assignedMaps) + "]");
+          ", " + (assignedTasks.size() - assignedMaps) + "]");
     }
 
     return assignedTasks;
