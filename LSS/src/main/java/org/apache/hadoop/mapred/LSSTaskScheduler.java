@@ -52,8 +52,6 @@ public class LSSTaskScheduler extends TaskScheduler {
     taskTrackerManager.addJobInProgressListener(eagerTaskInitializationListener);
     //启动后，统计不同工作流的资源占用情况
     new ResourceOccupyLSS(lssJobInProgressListener).start();
-    
-
   }
 
   @Override
@@ -113,11 +111,11 @@ public class LSSTaskScheduler extends TaskScheduler {
     int remainingReduceLoad = 0;
     int remainingMapLoad = 0;
     
-    lssJobInProgressListener.HeartbeatTime = this.taskTrackerManager.getNextHeartbeatInterval();
-    lssJobInProgressListener.NUMMapSlots = this.taskTrackerManager.getClusterStatus().getMapTasks();
-    lssJobInProgressListener.NUMReduceSlots = this.taskTrackerManager.getClusterStatus().getMaxReduceTasks();
     synchronized (jobQueue) {
       //add by yanghao
+      lssJobInProgressListener.NUMMapSlots = this.taskTrackerManager.getClusterStatus().getMaxMapTasks();
+      lssJobInProgressListener.NUMReduceSlots = this.taskTrackerManager.getClusterStatus().getMaxReduceTasks();
+      lssJobInProgressListener.HeartbeatTime = this.taskTrackerManager.getNextHeartbeatInterval();
       lssJobInProgressListener.reOrderJobs();
       lssJobInProgressListener.killSpillDeadline();
       for (JobInProgress job : jobQueue) {
